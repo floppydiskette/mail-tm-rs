@@ -1,3 +1,4 @@
+use std::io::Read;
 use anyhow::Error;
 use rand::Rng;
 use serde::{Deserialize, Serialize};
@@ -32,23 +33,23 @@ impl HydraCollection<Domain> {
 
 
 // TODO memoise me for some time
-pub(crate) async fn domains() -> Result<HydraCollection<Domain>, Error> {
+pub(crate) fn domains() -> Result<HydraCollection<Domain>, Error> {
     let client = Client::new()?.build()?;
 
     log::debug!("Getting domains");
 
-    let response = client
-        .get(&format!("{}/domains", MAIL_API_URL))
-        .send()
-        .await?;
+    let mut response = client
+        .get(&format!("{}/domains", MAIL_API_URL))?;
 
     let code = response.status();
 
-    let response = response
-        .text()
-        .await?;
+    let response = {
+        let mut buffer = String::new();
+        response.body_mut().read_to_string(&mut buffer)?;
+        buffer
+    };
 
-    http::check_response_status(&code, &response).await?;
+    http::check_response_status(&code, &response)?;
 
     log::trace!("Retrieved domains: {}", response);
     Ok(serde_json::from_str(&response)?)
@@ -58,9 +59,8 @@ pub(crate) async fn domains() -> Result<HydraCollection<Domain>, Error> {
 mod tests {
     use super::*;
 
-    #[tokio::test]
-    async fn test_domains() -> Result<(), Error> {
-        let domains = domains().await?;
+    fn test_domains() -> Result<(), Error> {
+        let domains = domains()?;
         assert!(domains.total_items > 0);
 
         let first = domains.members.first().unwrap().clone();

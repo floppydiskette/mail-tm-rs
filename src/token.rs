@@ -1,3 +1,4 @@
+use std::io::Read;
 use serde::{Deserialize, Serialize};
 
 use crate::http::{Client};
@@ -12,7 +13,7 @@ pub struct Token {
     pub id: String,
 }
 
-pub(crate) async fn token(user: &User) -> Result<Token, Error> {
+pub(crate) fn token(user: &User) -> Result<Token, Error> {
     let client = Client::new()?
         .build()?;
 
@@ -23,13 +24,14 @@ pub(crate) async fn token(user: &User) -> Result<Token, Error> {
         "password": user.password
     });
 
-    let res = client
-        .post(format!("{}/token", MAIL_API_URL).as_str())
-        .body(create_as_string.to_string())
-        .send()
-        .await?;
+    let mut res = client
+        .post(format!("{}/token", MAIL_API_URL).as_str(), create_as_string.to_string())?;
 
-    let body = res.text().await?;
+    let body = {
+        let mut buffer = String::new();
+        res.body_mut().read_to_string(&mut buffer)?;
+        buffer
+    };
     log::trace!("Retrieved email token: {:?}", body);
 
     Ok(serde_json::from_str(&body)?)
@@ -40,18 +42,17 @@ mod tests {
     use super::*;
     use crate::accounts;
 
-    #[tokio::test]
-    async fn test_token() -> Result<(), Error> {
+    fn test_token() -> Result<(), Error> {
         pretty_env_logger::try_init().ok();
-        let user = User::default().with_domain(&crate::domains::domains().await?.any().domain);
+        let user = User::default().with_domain(&crate::domains::domains()?.any().domain);
 
-        let create = accounts::create(&user).await.unwrap();
+        let create = accounts::create(&user).unwrap();
 
-        let token = token(&user).await.unwrap();
+        let token = token(&user).unwrap();
 
         assert_eq!(token.token.is_empty(), false);
 
-        accounts::delete(&token.token, &create.id.unwrap()).await.unwrap();
+        accounts::delete(&token.token, &create.id.unwrap()).unwrap();
 
         Ok(())
     }

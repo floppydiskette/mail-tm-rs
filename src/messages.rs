@@ -1,3 +1,4 @@
+use std::io::Read;
 use anyhow::{Context, Error};
 use serde::{Deserialize, Serialize};
 
@@ -73,80 +74,78 @@ pub struct To {
     pub name: String,
 }
 
-pub(crate) async fn messages(token: &str, page: Option<usize>) -> Result<HydraCollection<Message>, Error> {
+pub(crate) fn messages(token: &str, page: Option<usize>) -> Result<HydraCollection<Message>, Error> {
     let client = Client::new()?.with_auth(&token)?.build()?;
 
     log::debug!("Getting messages");
 
-    let builder = client
-        .get(&format!("{}/messages", MAIL_API_URL));
+    let builder = format!("{}/messages", MAIL_API_URL);
     let builder = if let Some(idx) = page {
-        builder.query(&("page", idx))
+        builder + &format!("?page={}", idx)
     } else {
         builder
     };
 
-    let response = builder
-        .send()
-        .await?;
+    let mut response = client
+        .get(&builder)?;
 
     let code = response.status();
 
-    let response = response
-        .text()
-        .await?;
+    let response = {
+        let mut buffer = String::new();
+        response.body_mut().read_to_string(&mut buffer)?;
+        buffer
+    };
 
-    http::check_response_status(&code, &response).await?;
+    http::check_response_status(&code, &response)?;
 
     log::trace!("Retrieved domains: {}", response);
     Ok(serde_json::from_str(&response)?)
 }
 
-pub(crate) async fn get(token: &str, id: &str) -> Result<Message, Error> {
+pub(crate) fn get(token: &str, id: &str) -> Result<Message, Error> {
     let client = Client::new()?.with_auth(&token)?.build()?;
 
     log::debug!("Searching for message with id {}", id);
 
 
-    let response = client
-        .get(&format!("{}/messages/{}", MAIL_API_URL, id))
-        .send()
-        .await?;
+    let mut response = client
+        .get(&format!("{}/messages/{}", MAIL_API_URL, id))?;
 
     let code = response.status();
 
-    let response = response
-        .text()
-        .await?;
+    let response = {
+        let mut buffer = String::new();
+        response.body_mut().read_to_string(&mut buffer)?;
+        buffer
+    };
 
-    http::check_response_status(&code, &response).await?;
+    http::check_response_status(&code, &response)?;
 
     log::trace!("Retrieved a message: {}", response);
     Ok(serde_json::from_str(&response)?)
 }
 
 
-pub(crate) async fn delete(token: &str, id: &str) -> Result<(), Error> {
+pub(crate) fn delete(token: &str, id: &str) -> Result<(), Error> {
     let client = Client::new()?.with_auth(&token)?.build()?;
 
     log::debug!("Searching for account with id {}", id);
 
 
     let response = client
-        .delete(&format!("{}/messages/{}", MAIL_API_URL, id))
-        .send()
-        .await?;
+        .delete(&format!("{}/messages/{}", MAIL_API_URL, id))?;
 
     let code = response.status();
 
-    http::check_response_status(&code, "").await?;
+    http::check_response_status(&code, "")?;
 
     log::trace!("Deleted user with id {}", id);
     Ok(())
 }
 
 // TODO impl me
-pub(crate) async fn patch(token: &str, id: &str) -> Result<(), Error> {
+pub(crate) fn patch(token: &str, id: &str) -> Result<(), Error> {
     let client = Client::new()?.with_auth(&token)?.build()?;
 
     Ok(())
@@ -160,20 +159,19 @@ mod tests {
 
     use super::*;
 
-    #[tokio::test]
     async fn test_messages() -> Result<(), Error> {
         pretty_env_logger::try_init().ok();
-        let user = User::default().with_domain(&crate::domains::domains().await?.any().domain);
-        let create = create(&user).await.unwrap();
-        let token = crate::token(&user).await.unwrap();
+        let user = User::default().with_domain(&crate::domains::domains()?.any().domain);
+        let create = create(&user).unwrap();
+        let token = crate::token(&user).unwrap();
 
 
-        let messages = messages(&token.token, None).await?;
+        let messages = messages(&token.token, None)?;
         assert_eq!(messages.total_items, 0);
 
         let id = create.id.unwrap();
 
-        accounts::delete(&token.token, &id).await.unwrap();
+        accounts::delete(&token.token, &id).unwrap();
 
         Ok(())
     }

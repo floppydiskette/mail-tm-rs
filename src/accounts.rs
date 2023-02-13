@@ -1,4 +1,6 @@
+use std::io::Read;
 use anyhow::Error;
+use isahc::ReadResponseExt;
 use serde::{Deserialize, Serialize};
 
 use crate::{http, MAIL_API_URL};
@@ -47,73 +49,70 @@ impl Account {
     }
 }
 
-pub(crate) async fn create(user: &User) -> Result<Account, Error> {
+pub(crate) fn create(user: &User) -> Result<Account, Error> {
     let client = Client::new()?.build()?;
 
     log::debug!("Creating account for user {:?}", user);
 
     let json = serde_json::json!(Account::from_user(user));
     let json_str = json.to_string();
-    let response = client
-        .post(format!("{}/accounts", MAIL_API_URL).as_str())
-        .body(json_str)
-        .send()
-        .await?;
+    let mut response = client
+        .post(format!("{}/accounts", MAIL_API_URL).as_str(), json_str)?;
 
     let code = response.status();
 
-    let response = response
-        .text()
-        .await?;
+    let response_str = {
+        let mut buffer = String::new();
+        response.body_mut().read_to_string(&mut buffer)?;
+        buffer
+    };
 
-    http::check_response_status(&code, &response).await?;
+    http::check_response_status(&code, &response_str)?;
 
-    log::trace!("Created account: {}", response);
-    Ok(serde_json::from_str(&response)?)
+    log::trace!("Created account: {}", response_str);
+    Ok(serde_json::from_str(&response_str)?)
 }
 
-pub(crate) async fn get(token: &str, id: &str) -> Result<Account, Error> {
+pub(crate) fn get(token: &str, id: &str) -> Result<Account, Error> {
     let client = Client::new()?.with_auth(&token)?.build()?;
 
     log::debug!("Searching for account with id {}", id);
 
-    let response = client
-        .get(&format!("{}/accounts/{}", MAIL_API_URL, id))
-        .send()
-        .await?;
+    let mut response = client
+        .get(&format!("{}/accounts/{}", MAIL_API_URL, id))?;
 
     let code = response.status();
 
-    let response = response
-        .text()
-        .await?;
+    let response_str = {
+        let mut buffer = String::new();
+        response.body_mut().read_to_string(&mut buffer)?;
+        buffer
+    };
 
-    http::check_response_status(&code, &response).await?;
+    http::check_response_status(&code, &response_str)?;
 
-    log::trace!("Retrieved a user: {}", response);
-    Ok(serde_json::from_str(&response)?)
+    log::trace!("Retrieved a user: {}", response_str);
+    Ok(serde_json::from_str(&response_str)?)
 }
 
-pub(crate) async fn delete(token: &str, id: &str) -> Result<(), Error> {
+pub(crate) fn delete(token: &str, id: &str) -> Result<(), Error> {
     let client = Client::new()?.with_auth(&token)?.build()?;
 
     log::debug!("Searching for account with id {}", id);
 
 
     let response = client
-        .delete(&format!("{}/accounts/{}", MAIL_API_URL, id))
-        .send()
-        .await?;
+        .delete(&format!("{}/accounts/{}", MAIL_API_URL, id))?;
 
     let code = response.status();
 
-    http::check_response_status(&code, "").await?;
+    http::check_response_status(&code, "")?;
 
     log::trace!("Deleted user with id {}", id);
     Ok(())
 }
 
-pub(crate) async fn me(token: &str) -> Result<Account, Error> {
+pub(crate) fn me(token: &str) -> Result<Account, Error> {
     let client = Client::new()?.with_auth(&token)?.build()?;
 
     log::debug!("Getting me");
@@ -121,20 +120,17 @@ pub(crate) async fn me(token: &str) -> Result<Account, Error> {
     let builder = client
         .get(&format!("{}/me", MAIL_API_URL));
 
-    let response = builder
-        .send()
-        .await?;
+    let mut response = builder?;
 
     let code = response.status();
 
-    let response = response
-        .text()
-        .await?;
+    let mut response_str = String::new();
+    let n = response.body_mut().read_to_string(&mut response_str)?;
 
-    http::check_response_status(&code, &response).await?;
+    http::check_response_status(&code, &response_str)?;
 
-    log::trace!("Retrieved me: {}", response);
-    Ok(serde_json::from_str(&response)?)
+    log::trace!("Retrieved me: {}", response_str);
+    Ok(serde_json::from_str(&response_str)?)
 }
 
 #[cfg(test)]
@@ -142,14 +138,12 @@ mod tests {
     use super::*;
     use crate::token;
 
-    #[tokio::test]
-    async fn test_accounts_create() -> Result<(), Error> {
+    fn test_accounts_create() -> Result<(), Error> {
         pretty_env_logger::try_init().ok();
 
-        let user = User::default().with_domain(&crate::domains::domains().await?.any().domain);
+        let user = User::default().with_domain(&crate::domains::domains()?.any().domain);
         assert_eq!(
-            create(&user)
-                .await?
+            create(&user)?
                 .address
                 .as_str()
                 .is_empty(),
@@ -158,14 +152,13 @@ mod tests {
         Ok(())
     }
 
-    #[tokio::test]
     async fn test_accounts() -> Result<(), Error> {
         pretty_env_logger::try_init().ok();
-        let user = User::default().with_domain(&crate::domains::domains().await?.any().domain);
+        let user = User::default().with_domain(&crate::domains::domains()?.any().domain);
 
-        let create = create(&user).await.unwrap();
+        let create = create(&user).unwrap();
 
-        let token = token(&user).await.unwrap();
+        let token = token(&user).unwrap();
 
 
         assert_eq!(
@@ -178,15 +171,15 @@ mod tests {
 
         let id = create.id.unwrap();
 
-        let get = get(&token.token, &id).await?;
+        let get = get(&token.token, &id)?;
 
         assert_eq!(get.id.unwrap(), id.clone());
 
-        let me = me(&token.token).await?;
+        let me = me(&token.token)?;
 
         assert_eq!(me.id.unwrap(), id.clone());
 
-        delete(&token.token, &id).await.unwrap();
+        delete(&token.token, &id).unwrap();
 
         Ok(())
     }
