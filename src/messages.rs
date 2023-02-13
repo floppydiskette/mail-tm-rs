@@ -79,7 +79,7 @@ pub(crate) fn messages(token: &str, page: Option<usize>) -> Result<HydraCollecti
 
     log::debug!("Getting messages");
 
-    let builder = format!("{}/messages", MAIL_API_URL);
+    let builder = format!("{}/messages", MAIL_API_URL.to_owned());
     let builder = if let Some(idx) = page {
         builder + &format!("?page={}", idx)
     } else {
@@ -110,7 +110,7 @@ pub(crate) fn get(token: &str, id: &str) -> Result<Message, Error> {
 
 
     let mut response = client
-        .get(&format!("{}/messages/{}", MAIL_API_URL, id))?;
+        .get(&format!("{}/messages/{}", MAIL_API_URL.to_owned(), id))?;
 
     let code = response.status();
 
@@ -134,7 +134,7 @@ pub(crate) fn delete(token: &str, id: &str) -> Result<(), Error> {
 
 
     let response = client
-        .delete(&format!("{}/messages/{}", MAIL_API_URL, id))?;
+        .delete(&format!("{}/messages/{}", MAIL_API_URL.to_owned(), id))?;
 
     let code = response.status();
 

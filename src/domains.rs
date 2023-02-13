@@ -20,7 +20,6 @@ pub struct Domain {
     pub id2: String,
     pub domain: String,
     pub is_active: bool,
-    pub is_private: bool,
     pub created_at: String,
     pub updated_at: String,
 }
@@ -39,7 +38,7 @@ pub(crate) fn domains() -> Result<HydraCollection<Domain>, Error> {
     log::debug!("Getting domains");
 
     let mut response = client
-        .get(&format!("{}/domains", MAIL_API_URL))?;
+        .get(&format!("{}/domains", MAIL_API_URL.to_owned()))?;
 
     let code = response.status();
 

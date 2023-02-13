@@ -25,7 +25,7 @@ pub(crate) fn token(user: &User) -> Result<Token, Error> {
     });
 
     let mut res = client
-        .post(format!("{}/token", MAIL_API_URL).as_str(), create_as_string.to_string())?;
+        .post(format!("{}/token", MAIL_API_URL.to_owned()).as_str(), create_as_string.to_string())?;
 
     let body = {
         let mut buffer = String::new();

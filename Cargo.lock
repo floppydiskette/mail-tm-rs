@@ -333,6 +333,7 @@ dependencies = [
  "anyhow",
  "isahc",
  "log",
+ "once_cell",
  "pretty_env_logger",
  "rand",
  "serde",

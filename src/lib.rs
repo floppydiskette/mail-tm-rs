@@ -9,6 +9,8 @@
 //! [`Mail-TM`]: https://mail.tm/
 
 use anyhow::{Context, Error};
+use once_cell::sync::Lazy;
+use rand::prelude::*;
 
 use token::Token;
 use accounts::Account;
@@ -26,7 +28,17 @@ pub mod http;
 pub mod hydra;
 pub mod user;
 
-pub(crate) const MAIL_API_URL: &str = "https://api.mail.tm";
+pub static MAIL_API_URL: Lazy<String> = {
+    const POTENTIALS: [&str; 2] = [
+        "https://api.mail.tm",
+        "https://api.mail.gw",
+    ];
+    Lazy::new(|| {
+        let mut rng = thread_rng();
+        POTENTIALS.choose(&mut rng).unwrap().to_string()
+    })
+};
+
 pub(crate) const USER_AGENT: &str = "Isahc; mail-tm-rs";
 
 

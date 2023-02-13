@@ -57,7 +57,7 @@ pub(crate) fn create(user: &User) -> Result<Account, Error> {
     let json = serde_json::json!(Account::from_user(user));
     let json_str = json.to_string();
     let mut response = client
-        .post(format!("{}/accounts", MAIL_API_URL).as_str(), json_str)?;
+        .post(format!("{}/accounts", MAIL_API_URL.to_owned()).as_str(), json_str)?;
 
     let code = response.status();
 
@@ -79,7 +79,7 @@ pub(crate) fn get(token: &str, id: &str) -> Result<Account, Error> {
     log::debug!("Searching for account with id {}", id);
 
     let mut response = client
-        .get(&format!("{}/accounts/{}", MAIL_API_URL, id))?;
+        .get(&format!("{}/accounts/{}", MAIL_API_URL.to_owned(), id))?;
 
     let code = response.status();
 
@@ -102,7 +102,7 @@ pub(crate) fn delete(token: &str, id: &str) -> Result<(), Error> {
 
 
     let response = client
-        .delete(&format!("{}/accounts/{}", MAIL_API_URL, id))?;
+        .delete(&format!("{}/accounts/{}", MAIL_API_URL.to_owned(), id))?;
 
     let code = response.status();
 
@@ -118,7 +118,7 @@ pub(crate) fn me(token: &str) -> Result<Account, Error> {
     log::debug!("Getting me");
 
     let builder = client
-        .get(&format!("{}/me", MAIL_API_URL));
+        .get(&format!("{}/me", MAIL_API_URL.to_owned()));
 
     let mut response = builder?;
 
